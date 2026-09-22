@@ -11,4 +11,10 @@
 require("config.options")
 require("config.keymaps")
 require("config.autocmds")
+
+-- Optional per-machine overrides, gitignored so each device can differ.
+-- Create lua/config/local.lua to change settings on this machine only; it
+-- runs after the defaults above and before plugins load.
+pcall(require, "config.local")
+
 require("config.lazy")

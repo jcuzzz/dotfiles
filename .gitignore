@@ -1,8 +1,12 @@
-# Machine-local overrides. Anything in here is ignored by git, so each device
-# can differ without causing conflicts. lazy.nvim still imports the file if it
-# exists (see lua/config/lazy.lua), so use it for per-machine plugin tweaks.
-lua/plugins/local.lua
+# Machine-local overrides, so each device can differ without merge conflicts.
+#
+#   lua/config/local.lua    editor settings for this machine only; init.lua
+#                           requires it if present
+#   lua/plugins/local.lua   extra plugins for this machine only; lazy.nvim
+#                           imports the whole lua/plugins/ directory, so this
+#                           is picked up automatically
 lua/config/local.lua
+lua/plugins/local.lua
 
 # Spell files downloaded on demand
 spell/

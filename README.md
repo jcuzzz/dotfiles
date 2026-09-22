@@ -110,3 +110,40 @@ Add the treesitter parser in `lua/plugins/treesitter.lua` under
 - **nvim-treesitter** is pinned to the `master` branch, which upstream has
   frozen in favour of a rewritten `main` branch. master works on this Neovim
   version; migrating is a separate job that also needs the tree-sitter CLI.
+
+## Using this on another device
+
+```sh
+git clone <your-repo-url> ~/.config/nvim
+nvim
+```
+
+lazy.nvim bootstraps itself, installs every plugin at the exact commits in
+`lazy-lock.json`, and mason downloads the language servers. First launch takes
+a few minutes; after that it is instant.
+
+Requirements on the new machine: Neovim 0.11+, `git`, `curl`, a C compiler and
+`make` (for treesitter parsers and telescope-fzf-native), `node` and `npm` (for
+the web and Python servers), and a Nerd Font in the terminal.
+
+### Keeping devices in sync
+
+```sh
+cd ~/.config/nvim
+git pull
+nvim -c "Lazy restore" -c qa   # match plugin versions to lazy-lock.json exactly
+```
+
+After changing plugins on one machine, commit `lazy-lock.json` along with the
+config so the other machine gets identical versions.
+
+### Per-machine differences
+
+Anything that should apply to one device only goes in `lua/config/local.lua`
+(settings) or `lua/plugins/local.lua` (extra plugins). Both are gitignored, so
+they never conflict. For example, on a machine without a Nerd Font:
+
+```lua
+-- lua/config/local.lua
+vim.g.have_nerd_font = false
+```
