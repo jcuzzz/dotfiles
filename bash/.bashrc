@@ -111,7 +111,7 @@ export SUDO_EDITOR="$EDITOR"
 [ -d "$HOME/.local/bin" ] && case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH" ;; esac
 [ -d /opt/nvim/bin ] && PATH="/opt/nvim/bin:$PATH"
 
-alias reload='source ~/.bashrc'
+alias reload='exec bash'  # fresh shell; re-sourcing stacks starship/PROMPT_COMMAND hooks
 alias py=python3
 alias vim=nvim
 alias vi=nvim
