@@ -1,57 +1,22 @@
 "$schema" = 'https://starship.rs/config-schema.json'
 
-# Tokyonight colours to match nvim and tmux. Uses only plain characters, so
-# it renders with any font (no Nerd Font required).
-
-format = """
-$directory\
-$git_branch\
-$git_status\
-$golang\
-$python\
-$nodejs\
-$docker_context\
-$cmd_duration\
-$line_break\
-$character"""
-
 add_newline = true
+format = "$directory$git_branch$git_status$line_break$character"
 
 [directory]
-style = "bold #7aa2f7"
-truncation_length = 4
-truncate_to_repo = true
+style = "bold cyan"
+truncation_length = 1
+truncation_symbol = "…/"
+truncate_to_repo = false
+format = "[$path]($style) "
 
 [git_branch]
-format = "[on $branch]($style) "
-style = "#bb9af7"
+style = "bold purple"
+format = "[git:$branch]($style) "
 
 [git_status]
-format = '([\[$all_status$ahead_behind\]]($style) )'
-style = "#e0af68"
-
-[golang]
-format = "[go $version]($style) "
-style = "#7dcfff"
-
-[python]
-format = '[py ${version}( \($virtualenv\))]($style) '
-style = "#e0af68"
-
-[nodejs]
-format = "[node $version]($style) "
-style = "#9ece6a"
-
-[docker_context]
-format = "[docker $context]($style) "
-style = "#7aa2f7"
-
-[cmd_duration]
-min_time = 2000
-format = "[took $duration]($style) "
-style = "#565f89"
+style = "bold yellow"
 
 [character]
-success_symbol = "[>](bold #9ece6a)"
-error_symbol = "[>](bold #f7768e)"
-vimcmd_symbol = "[<](bold #9ece6a)"
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
