@@ -1,0 +1,16 @@
+[user]
+	name = jcuz
+	email = jcuz@jcuz.com
+[init]
+	defaultBranch = main
+[credential "https://github.com"]
+	helper =
+	helper = !gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !gh auth git-credential
+
+# Per-machine overrides (e.g. a work email): put them in ~/.gitconfig.local.
+# Kept last so it wins.
+[include]
+	path = ~/.gitconfig.local
