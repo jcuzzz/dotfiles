@@ -90,19 +90,16 @@ return {
     },
     opts = {
       options = {
-        diagnostics = "nvim_lsp",
+        -- Diagnostics in the tab bar are deliberately off: bufferline
+        -- redraws the whole tabline on every DiagnosticChanged event, and
+        -- the counts duplicate what lualine and the sign column show.
+        diagnostics = false,
         always_show_bufferline = false,
         show_buffer_close_icons = false,
         separator_style = "thin",
         offsets = {
           { filetype = "neo-tree", text = "Explorer", highlight = "Directory", text_align = "left" },
         },
-        diagnostics_indicator = function(_, _, diag)
-          local s = ""
-          if diag.error then s = s .. " " .. diag.error end
-          if diag.warning then s = s .. " " .. diag.warning end
-          return s
-        end,
       },
     },
   },

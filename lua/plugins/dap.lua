@@ -21,61 +21,22 @@
 --   <leader>du   toggle the debugger UI       <leader>dr  open the REPL
 --   <leader>de   evaluate expression under cursor (also works on a selection)
 --
--- Nothing here loads until you press one of these keys.
+-- nvim-dap loads on those keys, or when you open a Python or Go file (the
+-- language adapters below register their launch configurations then). The
+-- UI panels and the mason installer stay unloaded until a session starts.
 
 return {
   {
     "mfussenegger/nvim-dap",
 
+    -- Only the inline-value display loads with nvim-dap. The UI panels and
+    -- the mason adapter installer are separate specs below, so that opening
+    -- a .py or .go file does not drag the whole debugger in with it.
     dependencies = {
-      -- The panel layout: scopes, breakpoints, stacks, watches, console
-      {
-        "rcarriga/nvim-dap-ui",
-        dependencies = { "nvim-neotest/nvim-nio" },
-        config = function()
-          local dap, dapui = require("dap"), require("dapui")
-          dapui.setup({
-            icons = { expanded = "", collapsed = "", current_frame = "" },
-            layouts = {
-              {
-                elements = {
-                  { id = "scopes", size = 0.35 },
-                  { id = "breakpoints", size = 0.15 },
-                  { id = "stacks", size = 0.25 },
-                  { id = "watches", size = 0.25 },
-                },
-                size = 44,
-                position = "left",
-              },
-              {
-                elements = { { id = "repl", size = 0.5 }, { id = "console", size = 0.5 } },
-                size = 12,
-                position = "bottom",
-              },
-            },
-          })
-
-          -- Open the UI automatically when a session starts, close it after
-          dap.listeners.after.event_initialized["dapui_config"] = function() dapui.open() end
-          dap.listeners.before.event_terminated["dapui_config"] = function() dapui.close() end
-          dap.listeners.before.event_exited["dapui_config"] = function() dapui.close() end
-        end,
-      },
-
       -- Each variable's current value shown inline, beside the code
       {
         "theHamsta/nvim-dap-virtual-text",
         opts = { virt_text_pos = "eol", commented = true },
-      },
-
-      -- Installs debug adapters through mason
-      {
-        "jay-babu/mason-nvim-dap.nvim",
-        dependencies = "mason-org/mason.nvim",
-        opts = {
-          ensure_installed = { "python", "delve" },
-          handlers = {}, -- use mason-nvim-dap's default configuration
-        },
       },
     },
 
@@ -117,7 +78,64 @@ return {
       for name, opts in pairs(signs) do
         vim.fn.sign_define(name, opts)
       end
+
+      -- Open the UI automatically when a session starts, close it after.
+      -- require() inside the callback is what pulls nvim-dap-ui in, so the
+      -- panels cost nothing until you actually debug something.
+      dap.listeners.after.event_initialized["dapui_config"] = function() require("dapui").open() end
+      dap.listeners.before.event_terminated["dapui_config"] = function() require("dapui").close() end
+      dap.listeners.before.event_exited["dapui_config"] = function() require("dapui").close() end
     end,
+  },
+
+  -- ====================================================================
+  -- The debugger UI: scopes, breakpoints, stacks, watches, REPL, console.
+  -- Loads on first require - either from the listeners above when a session
+  -- starts, or from <leader>du / <leader>de.
+  -- ====================================================================
+  {
+    "rcarriga/nvim-dap-ui",
+    lazy = true,
+    main = "dapui",
+    dependencies = { "nvim-neotest/nvim-nio" },
+    opts = {
+      icons = { expanded = "", collapsed = "", current_frame = "" },
+      layouts = {
+        {
+          elements = {
+            { id = "scopes", size = 0.35 },
+            { id = "breakpoints", size = 0.15 },
+            { id = "stacks", size = 0.25 },
+            { id = "watches", size = 0.25 },
+          },
+          size = 44,
+          position = "left",
+        },
+        {
+          elements = { { id = "repl", size = 0.5 }, { id = "console", size = 0.5 } },
+          size = 12,
+          position = "bottom",
+        },
+      },
+    },
+  },
+
+  -- ====================================================================
+  -- Installs debug adapters through mason.
+  --
+  -- This ships a very large table of default adapter configurations, which
+  -- cost ~350ms to load, so it is gated behind its commands rather than
+  -- loading with nvim-dap. debugpy and delve are already installed; run
+  -- :DapInstall <adapter> by hand if you ever need another one.
+  -- ====================================================================
+  {
+    "jay-babu/mason-nvim-dap.nvim",
+    cmd = { "DapInstall", "DapUninstall" },
+    dependencies = "mason-org/mason.nvim",
+    opts = {
+      ensure_installed = { "python", "delve" },
+      handlers = {}, -- use mason-nvim-dap's default configuration
+    },
   },
 
   -- ====================================================================

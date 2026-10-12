@@ -33,8 +33,10 @@ return {
           "markdown", "markdown_inline", "regex", "vim", "vimdoc", "query",
         },
 
-        -- Install a missing parser the first time you open such a file
-        auto_install = true,
+        -- Off: this checks for a missing parser on every buffer you open,
+        -- which means a filesystem probe per file. The languages above are
+        -- already covered; for anything else run :TSInstall <lang> once.
+        auto_install = false,
 
         highlight = {
           enable = true,

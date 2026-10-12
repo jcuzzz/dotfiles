@@ -50,6 +50,28 @@ opt.timeoutlen = 400 -- how long which-key waits before showing its menu
 
 -- Behaviour
 opt.mouse = "a"
+-- Name the clipboard tool outright. Left unset, Neovim probes for every
+-- known clipboard provider in turn at startup, and under WSL each of those
+-- lookups walks the Windows entries in $PATH - ~260ms before the first
+-- screen draw. WSLg supplies an X server, so xclip is the one that wins.
+-- On a machine without xclip, delete this block and Neovim will probe again
+-- (or override it in lua/config/local.lua).
+if vim.fn.executable("xclip") == 1 then
+  vim.g.clipboard = {
+    name = "xclip",
+    copy = {
+      ["+"] = { "xclip", "-quiet", "-i", "-selection", "clipboard" },
+      ["*"] = { "xclip", "-quiet", "-i", "-selection", "primary" },
+    },
+    paste = {
+      ["+"] = { "xclip", "-o", "-selection", "clipboard" },
+      ["*"] = { "xclip", "-o", "-selection", "primary" },
+    },
+    -- Serve pastes from memory when Neovim itself did the last yank, rather
+    -- than spawning xclip every time
+    cache_enabled = 1,
+  }
+end
 opt.clipboard = "unnamedplus" -- yank goes to the system clipboard
 opt.confirm = true -- ask to save rather than refusing to :q
 opt.inccommand = "split" -- live preview while typing :%s/foo/bar/

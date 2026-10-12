@@ -249,6 +249,16 @@ return {
       })
 
       require("mason-tool-installer").setup({
+        -- The mason-nvim-dap integration is on by default and require()s
+        -- that plugin, which loads a ~390ms table of adapter configurations
+        -- at startup. Nothing in the list below is a debug adapter, so the
+        -- integration buys nothing here. Turn it back on if you ever add one.
+        integrations = {
+          ["mason-lspconfig"] = true,
+          ["mason-null-ls"] = true,
+          ["mason-nvim-dap"] = false,
+        },
+
         ensure_installed = {
           "stylua",        -- lua formatter
           "gofumpt",       -- go formatter (stricter gofmt)
@@ -260,7 +270,10 @@ return {
           -- in dap.lua. Listing them here too makes both race for the same
           -- package and one of them errors out.
         },
-        run_on_start = true,
+        -- Off at startup: this refreshes the mason registry and checks every
+        -- tool above on each launch. The tools are installed already, so run
+        -- :MasonToolsInstall by hand after adding one to the list.
+        run_on_start = false,
         auto_update = false,
       })
 

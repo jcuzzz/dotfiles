@@ -68,7 +68,13 @@ return {
         ghost_text = { enabled = false },
       },
 
-      signature = { enabled = true, window = { border = "rounded" } },
+      -- Parameter hints: on demand only (<C-k> in insert mode), not
+      -- automatically on `(` / `,`, so they don't cover the lines above.
+      signature = {
+        enabled = true,
+        trigger = { enabled = false },
+        window = { border = "rounded" },
+      },
 
       sources = {
         default = { "lsp", "path", "snippets", "buffer" },

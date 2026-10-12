@@ -3,8 +3,25 @@
 -- trouble  a pane listing every diagnostic, reference, or quickfix entry,
 --          with a preview - the equivalent of an IDE's "Problems" tab
 -- aerial   a sidebar outline of the classes and functions in this file
+-- vim-tmux-navigator  <C-h/j/k/l> moves between splits, and carries on
+--          into the neighbouring tmux pane at the edge (pairs with the
+--          is_vim bindings in ~/.config/tmux/tmux.conf)
 
 return {
+  {
+    "christoomey/vim-tmux-navigator",
+    cmd = {
+      "TmuxNavigateLeft", "TmuxNavigateDown", "TmuxNavigateUp",
+      "TmuxNavigateRight", "TmuxNavigatePrevious",
+    },
+    keys = {
+      { "<C-h>", "<cmd>TmuxNavigateLeft<CR>", desc = "Window/pane left" },
+      { "<C-j>", "<cmd>TmuxNavigateDown<CR>", desc = "Window/pane down" },
+      { "<C-k>", "<cmd>TmuxNavigateUp<CR>", desc = "Window/pane up" },
+      { "<C-l>", "<cmd>TmuxNavigateRight<CR>", desc = "Window/pane right" },
+    },
+  },
+
   {
     "folke/trouble.nvim",
     cmd = "Trouble",

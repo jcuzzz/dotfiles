@@ -41,9 +41,10 @@ require("lazy").setup({
 
   install = { colorscheme = { "tokyonight" } },
 
-  -- Check for plugin updates in the background, but do not interrupt with a
-  -- popup. :Lazy shows what is available.
-  checker = { enabled = true, notify = false },
+  -- Update checking is off: it fires a git fetch per plugin in the
+  -- background on every start. Run :Lazy check when you want to know, or
+  -- flip this back to true if you would rather it happen on its own.
+  checker = { enabled = false, notify = false },
   change_detection = { notify = false },
 
   ui = { border = "rounded" },

@@ -14,11 +14,8 @@ map("n", "<leader>w", "<cmd>write<CR>", { desc = "Write file" })
 map("n", "<leader>q", "<cmd>quit<CR>", { desc = "Quit window" })
 map("n", "<leader>Q", "<cmd>qall<CR>", { desc = "Quit all" })
 
--- Move between splits without the <C-w> prefix
-map("n", "<C-h>", "<C-w>h", { desc = "Window left" })
-map("n", "<C-j>", "<C-w>j", { desc = "Window down" })
-map("n", "<C-k>", "<C-w>k", { desc = "Window up" })
-map("n", "<C-l>", "<C-w>l", { desc = "Window right" })
+-- <C-h/j/k/l> split navigation lives in plugins/navigation.lua
+-- (vim-tmux-navigator), so the same keys also cross into tmux panes.
 
 -- Resize splits with the arrow keys
 map("n", "<C-Up>", "<cmd>resize +2<CR>", { desc = "Taller" })
