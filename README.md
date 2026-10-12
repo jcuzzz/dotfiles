@@ -15,9 +15,6 @@ symlinks each package into `$HOME`. Anything it replaces is moved to
 `~/.dotfiles-backup/<timestamp>/`. It's safe to re-run. Use `--links` to skip the
 tool downloads.
 
-The repo is private, so log in to GitHub first (`gh auth login`) or clone
-over SSH.
-
 Neovim installs its plugins on first launch.
 
 ## Layout
