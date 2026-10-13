@@ -123,10 +123,11 @@ inst --profile server --dry-run >/dev/null 2>&1
 check "empty HOME: nothing changed" [ "$before" = "$(snapshot "$H")" ]
 new_home
 printf 'stock\n' > "$H/.bashrc"
+mkdir -p "$H/.config/nvim" && printf 'x\n' > "$H/.config/nvim/init.lua"
 before="$(snapshot "$H")"
 out="$(inst --profile server --dry-run 2>&1)" && rc=0 || rc=$?
-check "stock ~/.bashrc: exits 0" [ "$rc" = 0 ]
-check "stock ~/.bashrc: nothing changed" [ "$before" = "$(snapshot "$H")" ]
+check "stock ~/.bashrc + old ~/.config/nvim dir: exits 0" [ "$rc" = 0 ]
+check "stock ~/.bashrc + old ~/.config/nvim dir: nothing changed" [ "$before" = "$(snapshot "$H")" ]
 check "reports the file it would move" grep -q 'moving ~/.bashrc' <<< "$out"
 
 # ── Existing files ───────────────────────────────────────────────────────────
@@ -145,13 +146,24 @@ inst --profile workstation >/dev/null 2>&1
 check "re-run makes no second backup" [ "$(find "$H/.dotfiles-backup" -mindepth 1 -maxdepth 1 | wc -l)" = 1 ]
 
 new_home
-mkdir -p "$H/.config"
 ln -s /somewhere/else "$H/.vimrc"
 before="$(snapshot "$H")"
 out="$(inst --profile minimal 2>&1)" && rc=0 || rc=$?
-check "foreign symlink: stow refuses, exit 1" [ "$rc" = 1 ]
-check "foreign symlink: nothing changed (stow is all-or-nothing)" [ "$before" = "$(snapshot "$H")" ]
+check "foreign symlink: refused, exit 1" [ "$rc" = 1 ]
+check "foreign symlink: nothing changed" [ "$before" = "$(snapshot "$H")" ]
 check "foreign symlink: the error names it" grep -q '\.vimrc' <<< "$out"
+
+# The dangerous case: a file the installer would move (stock .bashrc) plus
+# an unrelated conflict. The preflight must stop before moving anything,
+# or the account would be left with no ~/.bashrc at all.
+new_home
+printf 'stock\n' > "$H/.bashrc"
+ln -s /somewhere/else "$H/.vimrc"
+before="$(snapshot "$H")"
+rc=0; inst --profile server >/dev/null 2>&1 || rc=$?
+check "stock .bashrc + unrelated conflict: refused, exit 1" [ "$rc" = 1 ]
+check "stock .bashrc + unrelated conflict: nothing moved or created" [ "$before" = "$(snapshot "$H")" ]
+check "stock .bashrc + unrelated conflict: ~/.bashrc still in place" grep -qx stock "$H/.bashrc"
 
 new_home   # absolute links, as the pre-stow installer made them
 mkdir -p "$H/.config"
@@ -213,10 +225,14 @@ printf 'alias zzlocal=true\n' > "$H/.bashrc.local"
 out="$("${sh_env[@]}" bash -i -c 'type -t zzlocal' 2>/dev/null)"
 check "~/.bashrc.local sourced" [ "$out" = alias ]
 
+# ~/.bashrc alone on a PATH with no optional tools. --norc skips the
+# distro's /etc/bash.bashrc: that is the system's file, not ours (Ubuntu
+# 24.04's calls `groups` and `cat` for its sudo hint), and this check is
+# about what the dotfiles themselves need.
 bare="$WORK/bare-bin"; mkdir -p "$bare"
 for c in bash dirname readlink basename; do ln -sf "$(command -v "$c")" "$bare/$c"; done
-out="$(env -i HOME="$H" PATH="$bare" TERM=xterm "$bare/bash" -i -c 'type -t ll; echo "EDITOR=$EDITOR"' 2>&1 | filter)"
-check "bare system (bash + 3 coreutils): no errors, EDITOR=vi" [ "$out" = $'alias\nEDITOR=vi' ]
+out="$(env -i HOME="$H" PATH="$bare" TERM=xterm "$bare/bash" --norc -i -c '. ~/.bashrc; type -t ll; echo "EDITOR=$EDITOR"' 2>&1 | filter)"
+check "~/.bashrc with no optional tools on PATH: no errors, EDITOR=vi" [ "$out" = $'alias\nEDITOR=vi' ]
 [ "$out" = $'alias\nEDITOR=vi' ] || show "$out"
 
 H2="$WORK/no-install-home"; mkdir -p "$H2"

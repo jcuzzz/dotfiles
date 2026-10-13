@@ -37,19 +37,25 @@ exec bash
 | `./install.sh --profile NAME --dry-run` | show what would happen; change nothing |
 | `./install.sh --uninstall` | remove every link stow made |
 
-`install.sh` is a thin wrapper (~130 lines) around GNU Stow:
+`install.sh` is a thin wrapper around GNU Stow:
 
 - **Stow** creates the symlinks, skips ones that are already right (so
   re-running is safe), and refuses to overwrite anything it doesn't own.
-  When it refuses, it changes nothing at all.
-- **The wrapper** picks the packages for the profile, and moves files that
+- **The wrapper** picks the packages for the profile. It moves files that
   would block stow, such as the stock `~/.bashrc` on a fresh Ubuntu, to
-  `~/.dotfiles-backup/<timestamp>/`. It also replaces absolute links left by
+  `~/.dotfiles-backup/<timestamp>/`, and replaces absolute links left by
   this repo's old installer.
 
-Anything else in the way, such as a symlink pointing somewhere unrelated,
-makes stow stop and print the path. Nothing changes. Move it aside and
-re-run.
+Every run happens in three steps:
+1. **Plan:** list the files to move and the old links to replace.
+2. **Preflight:** simulate the whole stow run (`stow --simulate`). If
+   anything *else* is in the way, such as a symlink pointing somewhere
+   unrelated, the run stops here with HOME untouched: nothing moved,
+   nothing linked. Move the listed path aside and re-run.
+3. **Execute:** move, then link. If stow still fails at this point (only
+   possible if HOME changed during the run), the moved files are put back.
+
+So a failed install never leaves you without a `~/.bashrc`.
 
 ### Profiles
 
@@ -132,6 +138,24 @@ If you delete or rename a file in a package, run `stow -R -d ~/dotfiles -t ~
 | `~/.config/tmux/local.conf` | tmux tweaks (gitignored) |
 | `nvim/.../lua/config/local.lua`, `lua/plugins/local.lua` | IDE settings / plugins (gitignored) |
 
+### Git on servers
+
+`~/.gitconfig` sets your name and email everywhere it is linked, every
+profile included. On a shared or service account (e.g. a `deploy` or
+`postgres` user), override it so commits aren't attributed to you:
+
+```sh
+git config -f ~/.gitconfig.local user.name  "deploy@db1"
+git config -f ~/.gitconfig.local user.email "ops@example.internal"
+```
+
+Authentication: GitHub HTTPS goes through `gh` only where it is installed.
+Elsewhere git falls back to its normal prompt; nothing stores tokens on
+disk. On servers, prefer SSH:
+- agent forwarding (`ssh -A server`, or `ForwardAgent yes` for trusted
+  hosts in `~/.ssh/config`) to push with your own key
+- a read-only deploy key on servers that only pull
+
 Secrets never go in the repo: database passwords in `~/.pgpass` (mode 600)
 or `~/.pg_service.conf`, cloud keys in `~/.aws/`, SSH keys in `~/.ssh/`.
 
@@ -209,6 +233,27 @@ to tell apart. Press `Ctrl-a` twice to reach the inner one, or use `F12`.
 - **Plain Vim and Neovim older than 0.10** have no OSC 52. Copy with tmux
   copy mode instead.
 
+What has been verified automatically, with a real tmux client attached
+under `script(1)` and every byte it receives recorded:
+- tmux copy mode sends `ESC ] 52 ; ; <base64>`.
+- A yank in nvim-lite inside tmux reaches the terminal as
+  `ESC ] 52 ; c ; <base64>`.
+- With `TERM=vt100` (no OSC 52 support) the copy still lands in the tmux
+  buffer, and no escape bytes are sent.
+
+tmux sends an empty selection parameter (`52;;`). Windows Terminal, WezTerm,
+kitty and iTerm2 treat that as the clipboard. Plain xterm needs
+`XTerm*selectToClipboard: true`.
+
+What needs checking by hand, because it depends on your terminal:
+1. From your workstation terminal: `ssh server`, run `tmux`, run
+   `echo hello`. Press `prefix Enter`, select with `v`, press `y`, then
+   paste into a local app.
+2. On the server, inside tmux: `nvim file`, `yy`, paste locally.
+3. The same through nested tmux (local tmux -> ssh -> remote tmux).
+4. Windows Terminal: OSC 52 writes are on by default. Large copies (above
+   ~100 KB) may be dropped by some terminals.
+
 ## psql
 
 `~/.psqlrc` changes only interactive behaviour:
@@ -224,7 +269,7 @@ difference. Opt-in helpers: `:timing`, `:x`, `:nulls`, `:activity`.
 
 | Situation | Do |
 |---|---|
-| Stow refused with a conflict | nothing was changed. Move the listed path aside, re-run |
+| Install stopped with "would conflict on the paths marked *" | nothing was changed (preflight). Move the listed path aside, re-run |
 | Want an original back | `rm ~/.bashrc && mv ~/.dotfiles-backup/<timestamp>/.bashrc ~/` |
 | Remove everything | `./install.sh --uninstall` (links only; backups and other files untouched) |
 | Shell broken after an edit | `bash --norc`, fix the file, `exec bash` |

@@ -12,7 +12,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: ShellCheck (preinstalled on GitHub's Ubuntu runners)
         run: shellcheck install.sh tests/run.sh bash/.bashrc bash/.bashrc.d/*.sh
       - name: Bash syntax
@@ -22,7 +22,7 @@ jobs:
     # What a fresh server gets from apt: stow 2.3, tmux, vim, Neovim 0.9
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: sudo apt-get update -q && sudo apt-get install -y -q stow tmux vim neovim
       - run: tests/run.sh
 
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     container: ubuntu:24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: apt-get update -q && apt-get install -y -q --no-install-recommends stow
       - name: Tests as an unprivileged user
         run: |
