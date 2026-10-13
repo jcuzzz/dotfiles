@@ -85,7 +85,7 @@ done
 # Absolute links into this repo come from the old installer; stow does not
 # recognise them, so they are just removed.
 backup="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
-cleared=0
+cleared=()   # paths this run clears before stowing
 for p in $PKGS; do
   for src in "$DOTFILES/$p"/.[!.]* "$DOTFILES/$p"/.config/*; do
     [ -e "$src" ] && [ "${src##*/}" != .config ] || continue
@@ -95,7 +95,7 @@ for p in $PKGS; do
       case "$(readlink "$dst")" in
         "$DOTFILES"/*)
           echo "replacing old absolute link ~/$rel"
-          cleared=1
+          cleared+=("$rel")
           [ "$DRY_RUN" = 1 ] || rm -- "$dst" ;;
       esac
     elif [ -e "$dst" ]; then
@@ -103,7 +103,7 @@ for p in $PKGS; do
       # through a linked parent directory)
       case "$(readlink -f "$dst")" in "$DOTFILES"/*) continue ;; esac
       echo "moving ~/$rel to ${backup/#"$HOME"/\~}/$rel"
-      cleared=1
+      cleared+=("$rel")
       if [ "$DRY_RUN" = 0 ]; then
         mkdir -p "$(dirname "$backup/$rel")"
         mv -- "$dst" "$backup/$rel"
@@ -114,11 +114,33 @@ done
 
 # One stow transaction: unlink the others, link this profile's packages.
 # Plain --stow is idempotent: links stow already owns are left alone.
-# shellcheck disable=SC2086
-if ! stow_ --delete $others --stow $PKGS; then
-  if [ "$DRY_RUN" = 1 ] && [ "$cleared" = 1 ]; then
-    echo "(a real run moves the paths listed above first, which clears stow's conflicts for them)"
-  else
+if [ "$DRY_RUN" = 1 ] && [ ${#cleared[@]} -gt 0 ]; then
+  # Stow's simulation still sees the paths listed above, which a real run
+  # clears first. Hide only its complaints about those; show anything else.
+  # shellcheck disable=SC2086
+  out="$(stow_ --delete $others --stow $PKGS 2>&1)" || true
+  keep=""
+  while IFS= read -r line; do
+    case "$line" in
+      # stow's notes about the old absolute links being replaced
+      *"BUG in find_stowed_path"*"path $DOTFILES/"* | *"Ignoring an absolute symlink"*"=> $DOTFILES/"*) continue ;;
+      *"* "*)
+        for rel in "${cleared[@]}"; do
+          case "$line" in *": $rel" | *" target $rel since"*) continue 2 ;; esac
+        done ;;
+    esac
+    keep+="$line"$'\n'
+  done <<< "$out"
+  out="${keep%$'\n'}"
+  if grep -q '^ *\* ' <<< "$out"; then
+    printf '%s\n' "$out"
+    echo "error: stow would also hit the conflicts marked * above; move those paths aside first" >&2
+    exit 1
+  fi
+  grep -v -e '^WARNING! stowing' -e '^All operations aborted' <<< "$out" || true
+else
+  # shellcheck disable=SC2086
+  if ! stow_ --delete $others --stow $PKGS; then
     echo "error: stow found conflicts (listed above) and changed nothing; move those paths aside and re-run" >&2
     exit 1
   fi

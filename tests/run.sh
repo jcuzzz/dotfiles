@@ -157,6 +157,14 @@ new_home   # absolute links, as the pre-stow installer made them
 mkdir -p "$H/.config"
 ln -s "$REPO/bash/.bashrc" "$H/.bashrc"
 ln -s "$REPO/tmux/.config/tmux" "$H/.config/tmux"
+out="$(inst --profile server --dry-run 2>&1)" && rc=0 || rc=$?
+check "migration dry-run: exits 0 without conflict warnings" \
+  bash -c '[ "$1" = 0 ] && ! grep -q -e WARNING -e "^ *\* " <<< "$2"' _ "$rc" "$out"
+[ "$rc" = 0 ] || show "$out"
+ln -s /somewhere/else "$H/.vimrc"
+rc=0; inst --profile server --dry-run >/dev/null 2>&1 || rc=$?
+check "migration dry-run still reports a real conflict" [ "$rc" = 1 ]
+rm "$H/.vimrc"
 inst --profile server >/dev/null 2>&1
 check "old absolute links migrated to stow links" links_ok server
 check "migration needed no backup" [ ! -e "$H/.dotfiles-backup" ]
