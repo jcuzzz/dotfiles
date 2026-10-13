@@ -245,11 +245,13 @@ if command -v tmux >/dev/null 2>&1; then
   H="$WORK/tmux-home"; mkdir -p "$H/.config"
   ln -s "$REPO/tmux/.config/tmux" "$H/.config/tmux"
   sock="dotfiles-test-$$"
+  # The prefix the config sets proves it was read (tmux's default is C-b)
+  prefix="$(sed -n 's/^set -g prefix \([^ ]*\).*/\1/p' "$REPO/tmux/.config/tmux/tmux.conf")"
   # Config errors make tmux open its first pane in view mode to list them
   res="$(env -i HOME="$H" PATH=/usr/bin:/bin TERM=xterm-256color tmux -L "$sock" \
          new-session -d -x 80 -y 24 \; display -p '#{pane_in_mode} #{prefix}' 2>&1 || true)"
   tmux -L "$sock" kill-server 2>/dev/null || true
-  check "config loads without errors ($(tmux -V))" [ "$res" = "0 C-a" ]
+  check "config loads without errors ($(tmux -V))" [ "$res" = "0 $prefix" ]
   res="$(env -i HOME="$H" PATH=/usr/bin:/bin SSH_CONNECTION='1 2 3 4' tmux -L "$sock" \
          new-session -d \; show -gv status-left 2>&1 || true)"
   tmux -L "$sock" kill-server 2>/dev/null || true
