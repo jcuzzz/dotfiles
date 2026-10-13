@@ -1,0 +1,4 @@
+# Machine-local overrides that live inside linked directories. Other local
+# files (~/.bashrc.local, ~/.gitconfig.local, ~/.vimrc.local) live in HOME,
+# outside the repo. Neovim's are listed in nvim/.config/nvim/.gitignore.
+tmux/.config/tmux/local.conf

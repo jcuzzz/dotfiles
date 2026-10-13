@@ -1,0 +1,38 @@
+-- ~/.psqlrc - interactive psql defaults (workstation and server profiles).
+--
+-- psql also reads this file for `psql -c` / `psql -f`, so it only contains
+-- settings that change *interactive* behaviour. Nothing here alters query
+-- output, so scripts and pipelines get exactly what they got before. Scripts
+-- should still pass -X to skip this file entirely.
+--
+-- Credentials do not belong here: use ~/.pgpass (chmod 600) or
+-- ~/.pg_service.conf, both untracked.
+--
+-- Per-machine differences: psql also reads ~/.psqlrc-<version> (e.g.
+-- ~/.psqlrc-16) instead of this file if present, or point $PSQLRC elsewhere
+-- from ~/.bashrc.local.
+
+-- None of the \set lines below print anything or change query output.
+
+-- Prompt: user@host:port/db, with * / ! when inside a transaction
+\set PROMPT1 '%n@%M:%>/%/%x%# '
+\set PROMPT2 '%w%R%x%# '
+
+-- A failed statement inside a transaction you are typing does not wreck the
+-- whole transaction (applies to interactive sessions only)
+\set ON_ERROR_ROLLBACK interactive
+
+-- History per database, without duplicates
+\set HISTFILE ~/.psql_history- :DBNAME
+\set HISTCONTROL ignoredups
+\set HISTSIZE 10000
+\set COMP_KEYWORD_CASE upper
+
+-- Handy for interactive work, but they change output, so they are opt-in.
+-- Type :name at the psql prompt to run one:
+--   :timing   toggle query timing          :x   expanded display when wide
+--   :nulls    show NULL as (null)          :activity   what is running now
+\set timing '\\timing'
+\set x '\\x auto'
+\set nulls '\\pset null (null)'
+\set activity 'SELECT pid, usename, state, now() - query_start AS runtime, wait_event_type, left(query, 80) AS query FROM pg_stat_activity WHERE state <> ''idle'' AND pid <> pg_backend_pid() ORDER BY runtime DESC NULLS LAST;'

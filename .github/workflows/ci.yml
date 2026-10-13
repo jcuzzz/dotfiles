@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck (preinstalled on GitHub's Ubuntu runners)
+        run: shellcheck install.sh tests/run.sh bash/.bashrc bash/.bashrc.d/*.sh
+      - name: Bash syntax
+        run: for f in install.sh tests/run.sh bash/.bashrc bash/.bashrc.d/*.sh; do bash -n "$f"; done
+
+  test:
+    # What a fresh server gets from apt: stow 2.3, tmux, vim, Neovim 0.9
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -q && sudo apt-get install -y -q stow tmux vim neovim
+      - run: tests/run.sh
+
+  clean-ubuntu:
+    # A bare Ubuntu container with only stow added: no git, tmux, vim, curl.
+    # Proves the profiles need nothing else and that a stock ~/.bashrc
+    # from /etc/skel is handled.
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: apt-get update -q && apt-get install -y -q --no-install-recommends stow
+      - name: Tests as an unprivileged user
+        run: |
+          useradd -m tester
+          cp -a "$GITHUB_WORKSPACE" /home/tester/dotfiles
+          chown -R tester: /home/tester/dotfiles
+          su tester -c '/home/tester/dotfiles/tests/run.sh'
+      - name: Server profile over a stock home, twice
+        run: |
+          su - tester -c '~/dotfiles/install.sh --profile server'
+          su - tester -c 'ls ~/.dotfiles-backup/*/.bashrc'
+          su - tester -c '~/dotfiles/install.sh --profile server'
+          su - tester -c 'bash -ic "type ll lt mkcd; echo EDITOR=\$EDITOR"' | tee /tmp/shell
+          grep -q "EDITOR=vi" /tmp/shell

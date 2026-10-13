@@ -1,113 +1,132 @@
 #!/usr/bin/env bash
-# Set up these dotfiles on a machine: fetch the shell tools, then symlink
-# every package into $HOME. Safe to re-run.
+# Link the packages for one profile into $HOME with GNU Stow.
 #
-#   ./install.sh            tools + links
-#   ./install.sh --links    links only
+#   ./install.sh [--profile workstation|server|minimal] [--dry-run]
+#   ./install.sh --uninstall [--dry-run]
 #
-# Layout is GNU Stow compatible (one dir per package, mirroring $HOME), so
-# `stow bash tmux ...` works too if you prefer it; this script just avoids
-# needing stow (or sudo) installed.
+# Stow does the linking, re-linking and unlinking. This script only adds
+# what stow deliberately leaves to you:
+#   * the package list for each profile
+#   * moving files that are in the way (e.g. Ubuntu's stock ~/.bashrc) to
+#     ~/.dotfiles-backup/<timestamp>/, since stow refuses to overwrite them
+# If stow still finds a conflict it aborts before changing anything, so a
+# failed run never leaves HOME half-linked.
 
 set -euo pipefail
 
-DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BIN="$HOME/.local/bin"
-BACKUP="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
+DOTFILES="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
-say() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
-
-# ── Tools ────────────────────────────────────────────────────────────────────
-
-latest_tag() { # owner/repo -> e.g. v0.65.0
-  curl -fsS --retry 3 -o /dev/null -w '%{redirect_url}' "https://github.com/$1/releases/latest" | sed 's#.*/tag/##'
-}
-
-fetch() { # name url  -- extract the binary called <name> from a tarball into $BIN
-  local tmp
-  tmp="$(mktemp -d)"
-  # GitHub's direct asset links sometimes 504; the API route via gh still works
-  if ! curl -fsSL --retry 3 -o "$tmp/pkg.tar.gz" "$2"; then
-    command -v gh >/dev/null || { echo "download failed: $2" >&2; return 1; }
-    echo "    direct download failed, retrying via gh"
-    local repo tag file
-    repo="$(echo "$2" | cut -d/ -f4-5)"
-    file="$(basename "$2")"
-    tag="$(echo "$2" | cut -d/ -f8)"
-    [ "$tag" = download ] && tag="$(latest_tag "$repo")"
-    gh release download "$tag" -R "$repo" -p "$file" -O "$tmp/pkg.tar.gz"
-  fi
-  tar -xzf "$tmp/pkg.tar.gz" -C "$tmp"
-  install -m 755 "$(find "$tmp" -type f -name "$1" | head -1)" "$BIN/$1"
-  rm -rf "$tmp"
-}
-
-install_tools() {
-  local arch tag
-  case "$(uname -m)" in
-    x86_64) arch=x86_64 ;;
-    aarch64 | arm64) arch=aarch64 ;;
-    *) echo "unsupported arch $(uname -m), skipping tools" >&2; return ;;
+ALL="bash git vim tmux nvim nvim-lite starship psql"
+packages() {
+  case "$1" in
+    workstation) echo "bash git vim tmux nvim starship psql" ;;
+    server)      echo "bash git vim tmux nvim-lite starship psql" ;;
+    minimal)     echo "bash git vim" ;;
+    *) return 1 ;;
   esac
-  mkdir -p "$BIN"
-
-  if ! command -v fzf >/dev/null; then
-    say "installing fzf"
-    tag="$(latest_tag junegunn/fzf)"
-    fetch fzf "https://github.com/junegunn/fzf/releases/download/$tag/fzf-${tag#v}-linux_$([ $arch = x86_64 ] && echo amd64 || echo arm64).tar.gz"
-  fi
-
-  if ! command -v zoxide >/dev/null; then
-    say "installing zoxide"
-    tag="$(latest_tag ajeetdsouza/zoxide)"
-    fetch zoxide "https://github.com/ajeetdsouza/zoxide/releases/download/$tag/zoxide-${tag#v}-$arch-unknown-linux-musl.tar.gz"
-  fi
-
-  if ! command -v starship >/dev/null; then
-    say "installing starship"
-    fetch starship "https://github.com/starship/starship/releases/latest/download/starship-$arch-unknown-linux-musl.tar.gz"
-  fi
 }
 
-# ── Links ────────────────────────────────────────────────────────────────────
+usage() { sed -n '2,5p' "$0" | cut -c3-; }
 
-link() { # source target
-  local src="$1" dst="$2"
-  if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$src" ]; then
-    return
-  fi
-  if [ -e "$dst" ] || [ -L "$dst" ]; then
-    mkdir -p "$BACKUP/$(dirname "${dst#"$HOME"/}")"
-    mv "$dst" "$BACKUP/${dst#"$HOME"/}"
-    echo "    backed up ~/${dst#"$HOME"/}"
-  fi
-  mkdir -p "$(dirname "$dst")"
-  ln -s "$src" "$dst"
-  echo "    ~/${dst#"$HOME"/} -> ${src#"$DOTFILES"/}"
+PROFILE=workstation DRY_RUN=0 UNINSTALL=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --profile) PROFILE="${2:-}"; shift ;;
+    --profile=*) PROFILE="${1#*=}" ;;
+    -n | --dry-run) DRY_RUN=1 ;;
+    --uninstall) UNINSTALL=1 ;;
+    -h | --help) usage; exit 0 ;;
+    *) usage >&2; exit 2 ;;
+  esac
+  shift
+done
+PKGS="$(packages "$PROFILE")" || { echo "unknown profile: $PROFILE" >&2; exit 2; }
+
+if ! command -v stow >/dev/null 2>&1; then
+  echo "error: GNU Stow is not installed. Run: sudo apt install stow" >&2
+  echo "       (no sudo? see README: 'Without stow')" >&2
+  exit 1
+fi
+
+stow_() { # stow with our dir/target; --simulate on a dry run
+  local sim=()
+  [ "$DRY_RUN" = 1 ] && sim=(--simulate)
+  stow --dir="$DOTFILES" --target="$HOME" --verbose=1 "${sim[@]}" "$@"
 }
 
-link_packages() {
-  say "linking packages"
-  local pkg entry sub
-  for pkg in "$DOTFILES"/*/; do
-    pkg="${pkg%/}"
-    shopt -s dotglob nullglob
-    for entry in "$pkg"/*; do
-      if [ "$(basename "$entry")" = .config ]; then
-        # Link each app's folder/file inside .config, not .config itself
-        for sub in "$entry"/*; do
-          link "$sub" "$HOME/.config/$(basename "$sub")"
-        done
-      else
-        link "$entry" "$HOME/$(basename "$entry")"
+if [ "$UNINSTALL" = 1 ]; then
+  # shellcheck disable=SC2086  # word-split the package list
+  stow_ --delete $ALL
+  echo "unlinked. Earlier originals, if any, are in ~/.dotfiles-backup/"
+  exit 0
+fi
+
+# Stow "folds" a directory that only one package's links would occupy into
+# a single link to the repo. Fine for ~/.config/nvim, never for ~/.config
+# itself (every app's state would land in git). So it must be a real
+# directory, and packages are laid out so that every profile with anything
+# in ~/.config puts links from several packages there (bash keeps its
+# modules in ~/.bashrc.d for that reason).
+if [ -L "$HOME/.config" ]; then
+  echo "error: ~/.config is a symlink ($(readlink "$HOME/.config")); make it a real directory first" >&2
+  exit 1
+fi
+[ "$DRY_RUN" = 1 ] || mkdir -p "$HOME/.config"
+
+# Packages outside this profile get unlinked (e.g. nvim-lite when a machine
+# moves to workstation). Stow ignores packages that were never linked.
+others=""
+for p in $ALL; do
+  case " $PKGS " in *" $p "*) ;; *) others="$others $p" ;; esac
+done
+
+# Clear the way for stow. Anything at a path a package needs is moved to the
+# backup dir, except links stow made (relative), which it manages itself.
+# Absolute links into this repo come from the old installer; stow does not
+# recognise them, so they are just removed.
+backup="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
+cleared=0
+for p in $PKGS; do
+  for src in "$DOTFILES/$p"/.[!.]* "$DOTFILES/$p"/.config/*; do
+    [ -e "$src" ] && [ "${src##*/}" != .config ] || continue
+    rel="${src#"$DOTFILES/$p/"}"
+    dst="$HOME/$rel"
+    if [ -L "$dst" ]; then
+      case "$(readlink "$dst")" in
+        "$DOTFILES"/*)
+          echo "replacing old absolute link ~/$rel"
+          cleared=1
+          [ "$DRY_RUN" = 1 ] || rm -- "$dst" ;;
+      esac
+    elif [ -e "$dst" ]; then
+      # Never move something that is really part of this repo (reached
+      # through a linked parent directory)
+      case "$(readlink -f "$dst")" in "$DOTFILES"/*) continue ;; esac
+      echo "moving ~/$rel to ${backup/#"$HOME"/\~}/$rel"
+      cleared=1
+      if [ "$DRY_RUN" = 0 ]; then
+        mkdir -p "$(dirname "$backup/$rel")"
+        mv -- "$dst" "$backup/$rel"
       fi
-    done
-    shopt -u dotglob nullglob
+    fi
   done
-  [ -d "$BACKUP" ] && say "originals saved in $BACKUP"
-  return 0
-}
+done
 
-[ "${1:-}" = --links ] || install_tools
-link_packages
-say "done - open a new shell or run: source ~/.bashrc"
+# One stow transaction: unlink the others, link this profile's packages.
+# Plain --stow is idempotent: links stow already owns are left alone.
+# shellcheck disable=SC2086
+if ! stow_ --delete $others --stow $PKGS; then
+  if [ "$DRY_RUN" = 1 ] && [ "$cleared" = 1 ]; then
+    echo "(a real run moves the paths listed above first, which clears stow's conflicts for them)"
+  else
+    echo "error: stow found conflicts (listed above) and changed nothing; move those paths aside and re-run" >&2
+    exit 1
+  fi
+fi
+
+if [ "$DRY_RUN" = 1 ]; then
+  echo "dry run: profile '$PROFILE' ($PKGS); nothing was changed"
+else
+  echo "profile '$PROFILE' linked: $PKGS"
+  echo "start a new shell (exec bash) to pick it up"
+fi

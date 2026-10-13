@@ -4,6 +4,10 @@ Modular Neovim IDE setup. Entry point is `init.lua`, which loads four files
 from `lua/config/` and then hands off to lazy.nvim, which imports every file
 in `lua/plugins/`.
 
+This is the `nvim` package of the [dotfiles repo](../../../README.md), used
+by the workstation profile. Servers get the `nvim-lite` package instead: no
+plugins, no downloads, settings shared with `~/.vimrc`.
+
 ## Adding, removing and editing plugins
 
 **Add a plugin:** create a new file in `lua/plugins/`. Any name works.
@@ -114,7 +118,8 @@ Add the treesitter parser in `lua/plugins/treesitter.lua` under
 ## Using this on another device
 
 ```sh
-git clone <your-repo-url> ~/.config/nvim
+git clone https://github.com/jcuzzz/dotfiles ~/dotfiles
+~/dotfiles/install.sh --profile workstation
 nvim
 ```
 
@@ -129,7 +134,7 @@ the web and Python servers), and a Nerd Font in the terminal.
 ### Keeping devices in sync
 
 ```sh
-cd ~/.config/nvim
+cd ~/dotfiles
 git pull
 nvim -c "Lazy restore" -c qa   # match plugin versions to lazy-lock.json exactly
 ```

@@ -3,12 +3,14 @@
 	email = jcuz@jcuz.com
 [init]
 	defaultBranch = main
+# GitHub auth via the gh CLI when it is installed; on machines without gh
+# (servers, containers) git falls back to its normal prompt / SSH keys.
 [credential "https://github.com"]
 	helper =
-	helper = !gh auth git-credential
+	helper = !command -v gh >/dev/null 2>&1 && gh auth git-credential
 [credential "https://gist.github.com"]
 	helper =
-	helper = !gh auth git-credential
+	helper = !command -v gh >/dev/null 2>&1 && gh auth git-credential
 
 # Per-machine overrides (e.g. a work email): put them in ~/.gitconfig.local.
 # Kept last so it wins.
