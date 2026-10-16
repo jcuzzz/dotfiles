@@ -1,0 +1,51 @@
+#!/bin/sh
+# prefix b / B (see tmux.conf): hide the current pane in a background window
+# named "hidden", and bring the last hidden one back split the way it was.
+#
+#   hide-pane hide|show <pane_id>
+set -u
+action=$1 pane=$2
+session=$(tmux display -p -t "$pane" '#{session_id}')
+hidden="$session:=hidden"
+
+has_hidden() { tmux list-windows -t "$session" -F '#W' | grep -qx hidden; }
+
+case $action in
+hide)
+  # In the window layout "{...}" holds panes side by side and "[...]"
+  # stacks them. Cut the layout off at this pane's entry, drop every group
+  # already closed before it; the last bracket still open is its parent.
+  layout=$(tmux display -p -t "$pane" '#{window_layout}')
+  before=$(printf '%s\n' "$layout" |
+    sed -E "s/[0-9]+x[0-9]+,[0-9]+,[0-9]+,${pane#%}([],}].*)?\$//")
+  parent=$(printf '%s\n' "$before" |
+    sed -E ':a; s/[[{][^][{}]*[]}]//; ta' | tr -cd '[{' | tail -c 1)
+  if [ "$parent" = "[" ]; then
+    split="-v $(tmux display -p -t "$pane" '#{pane_height}')"
+  else
+    split="-h $(tmux display -p -t "$pane" '#{pane_width}')"
+  fi
+  tmux set -p -t "$pane" @unhide "$split"
+
+  if has_hidden; then
+    tmux join-pane -d -s "$pane" -t "$hidden"
+    # -d leaves the hidden window's old active pane in place; make this one
+    # active so `show` brings back the most recently hidden pane
+    tmux select-pane -t "$pane"
+  else
+    tmux break-pane -d -s "$pane" -n hidden
+  fi
+  ;;
+show)
+  if ! has_hidden; then
+    tmux display "no hidden panes"
+    exit 0
+  fi
+  # shellcheck disable=SC2046  # split "-v 12" into its two words
+  set -- $(tmux display -p -t "$hidden" '#{@unhide}')
+  dir=${1:--h} size=${2:-}
+  # Back at its old size if it still fits, otherwise half and half
+  tmux join-pane "$dir" ${size:+-l "$size"} -s "$hidden" -t "$pane" 2>/dev/null ||
+    tmux join-pane "$dir" -s "$hidden" -t "$pane"
+  ;;
+esac

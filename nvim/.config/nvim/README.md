@@ -99,8 +99,8 @@ mason installs it on the next start. Add a formatter for it in
 `lua/plugins/formatting.lua` under `formatters_by_ft`, and its mason package
 name to `mason-tool-installer`'s `ensure_installed` in `lsp.lua`.
 
-Add the treesitter parser in `lua/plugins/treesitter.lua` under
-`ensure_installed` (or let `auto_install` handle it).
+Add the treesitter parser to the `parsers` list at the top of
+`lua/plugins/treesitter.lua` (or run `:TSInstall <lang>` once).
 
 ## Notes for this machine
 
@@ -111,9 +111,10 @@ Add the treesitter parser in `lua/plugins/treesitter.lua` under
   needs a database connection - see the comment in `lsp.lua`.
 - **Icons** assume a Nerd Font in your terminal. If you see boxes, set
   `vim.g.have_nerd_font = false` at the top of `lua/config/options.lua`.
-- **nvim-treesitter** is pinned to the `master` branch, which upstream has
-  frozen in favour of a rewritten `main` branch. master works on this Neovim
-  version; migrating is a separate job that also needs the tree-sitter CLI.
+- **nvim-treesitter** uses the rewritten `main` branch (the old `master` is
+  frozen). It needs Neovim 0.12+, the tree-sitter CLI 0.26.1+ and a C
+  compiler. Enter / Backspace node selection relies on Neovim 0.12's
+  built-in `an` / `in`.
 
 ## Using this on another device
 
@@ -127,8 +128,9 @@ lazy.nvim bootstraps itself, installs every plugin at the exact commits in
 `lazy-lock.json`, and mason downloads the language servers. First launch takes
 a few minutes; after that it is instant.
 
-Requirements on the new machine: Neovim 0.11+, `git`, `curl`, a C compiler and
-`make` (for treesitter parsers and telescope-fzf-native), `node` and `npm` (for
+Requirements on the new machine: Neovim 0.12+, `git`, `curl`, a C compiler and
+`make` (for treesitter parsers and telescope-fzf-native), the tree-sitter CLI
+0.26.1+ (for treesitter parsers), `node` and `npm` (for
 the web and Python servers), and a Nerd Font in the terminal.
 
 ### Keeping devices in sync

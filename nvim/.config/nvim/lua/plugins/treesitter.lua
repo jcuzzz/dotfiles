@@ -8,95 +8,104 @@
 --   :TSInstall <lang>    add a parser by hand
 --   :InspectTree         see the syntax tree for the current buffer
 --
--- Note: this pins the `master` branch. Upstream has frozen master in favour
--- of a rewritten `main` branch, which additionally requires the tree-sitter
--- CLI to be installed. master still works on this Neovim version; migrating
--- is a separate job whenever you want to do it.
+-- This is the rewritten `main` branch (the old `master` is frozen and does
+-- not support Neovim 0.12). It only installs parsers and queries; Neovim
+-- itself does the highlighting and folding, switched on per buffer below.
+-- Installing parsers needs the tree-sitter CLI (0.26.1+) and a C compiler.
+
+local parsers = {
+  "python", "lua", "luadoc", "go", "gomod", "gosum", "gowork",
+  "javascript", "typescript", "tsx", "html", "css", "scss",
+  "c_sharp", "sql",
+  "json", "yaml", "toml", "xml", -- json covers jsonc too
+  "bash", "dockerfile", "gitignore", "gitcommit", "diff",
+  "markdown", "markdown_inline", "regex", "vim", "vimdoc", "query",
+}
 
 return {
   {
     "nvim-treesitter/nvim-treesitter",
-    branch = "master",
+    branch = "main",
+    lazy = false, -- main does not support lazy-loading
     build = ":TSUpdate",
-    event = { "BufReadPost", "BufNewFile" },
-    dependencies = {
-      "nvim-treesitter/nvim-treesitter-textobjects",
-    },
     config = function()
-      require("nvim-treesitter.configs").setup({
-        ensure_installed = {
-          "python", "lua", "luadoc", "go", "gomod", "gosum", "gowork",
-          "javascript", "typescript", "tsx", "html", "css", "scss",
-          "c_sharp", "sql",
-          "json", "jsonc", "yaml", "toml", "xml",
-          "bash", "dockerfile", "gitignore", "gitcommit", "diff",
-          "markdown", "markdown_inline", "regex", "vim", "vimdoc", "query",
-        },
+      -- No-op for parsers already installed; missing ones build in the
+      -- background. For anything else run :TSInstall <lang> once.
+      require("nvim-treesitter").install(parsers)
 
-        -- Off: this checks for a missing parser on every buffer you open,
-        -- which means a filesystem probe per file. The languages above are
-        -- already covered; for anything else run :TSInstall <lang> once.
-        auto_install = false,
+      vim.api.nvim_create_autocmd("FileType", {
+        group = vim.api.nvim_create_augroup("treesitter_start", { clear = true }),
+        callback = function(args)
+          -- Fails quietly when there is no parser for this filetype
+          if not pcall(vim.treesitter.start, args.buf) then
+            return
+          end
+          vim.bo[args.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
 
-        highlight = {
-          enable = true,
-          additional_vim_regex_highlighting = false,
-        },
-
-        indent = { enable = true },
-
-        -- Press Enter to select the node under the cursor, then Enter again
-        -- to widen the selection to its parent. Backspace shrinks it.
-        incremental_selection = {
-          enable = true,
-          keymaps = {
-            init_selection = "<CR>",
-            node_incremental = "<CR>",
-            scope_incremental = "<S-CR>",
-            node_decremental = "<BS>",
-          },
-        },
-
-        textobjects = {
-          select = {
-            enable = true,
-            lookahead = true, -- jump forward to the next one if not inside it
-            keymaps = {
-              ["af"] = "@function.outer",
-              ["if"] = "@function.inner",
-              ["ac"] = "@class.outer",
-              ["ic"] = "@class.inner",
-              ["aa"] = "@parameter.outer",
-              ["ia"] = "@parameter.inner",
-              ["al"] = "@loop.outer",
-              ["il"] = "@loop.inner",
-              ["ai"] = "@conditional.outer",
-              ["ii"] = "@conditional.inner",
-              ["a/"] = "@comment.outer",
-            },
-          },
-
-          move = {
-            enable = true,
-            set_jumps = true, -- so Ctrl-o jumps back
-            goto_next_start = {
-              ["]f"] = "@function.outer",
-              ["]c"] = "@class.outer",
-            },
-            goto_previous_start = {
-              ["[f"] = "@function.outer",
-              ["[c"] = "@class.outer",
-            },
-          },
-
-          -- Swap an argument with the one beside it
-          swap = {
-            enable = true,
-            swap_next = { ["<leader>a"] = "@parameter.inner" },
-            swap_previous = { ["<leader>A"] = "@parameter.inner" },
-          },
-        },
+          -- Press Enter to select the node under the cursor, then Enter
+          -- again to widen the selection to its parent. Backspace shrinks
+          -- it. Built on Neovim's own `an` / `in`.
+          local map = function(mode, lhs, rhs, desc)
+            vim.keymap.set(mode, lhs, rhs, { buffer = args.buf, remap = true, desc = desc })
+          end
+          map("n", "<CR>", "van", "Select node")
+          map("x", "<CR>", "an", "Widen selection")
+          map("x", "<BS>", "in", "Shrink selection")
+        end,
       })
+    end,
+  },
+
+  {
+    "nvim-treesitter/nvim-treesitter-textobjects",
+    branch = "main",
+    dependencies = { "nvim-treesitter/nvim-treesitter" },
+    event = { "BufReadPost", "BufNewFile" },
+    config = function()
+      require("nvim-treesitter-textobjects").setup({
+        select = { lookahead = true }, -- jump forward to the next one if not inside it
+        move = { set_jumps = true },   -- so Ctrl-o jumps back
+      })
+
+      local select = require("nvim-treesitter-textobjects.select")
+      for lhs, query in pairs({
+        ["af"] = "@function.outer",
+        ["if"] = "@function.inner",
+        ["ac"] = "@class.outer",
+        ["ic"] = "@class.inner",
+        ["aa"] = "@parameter.outer",
+        ["ia"] = "@parameter.inner",
+        ["al"] = "@loop.outer",
+        ["il"] = "@loop.inner",
+        ["ai"] = "@conditional.outer",
+        ["ii"] = "@conditional.inner",
+        ["a/"] = "@comment.outer",
+      }) do
+        vim.keymap.set({ "x", "o" }, lhs, function()
+          select.select_textobject(query, "textobjects")
+        end, { desc = query })
+      end
+
+      local move = require("nvim-treesitter-textobjects.move")
+      for lhs, spec in pairs({
+        ["]f"] = { move.goto_next_start, "@function.outer" },
+        ["]c"] = { move.goto_next_start, "@class.outer" },
+        ["[f"] = { move.goto_previous_start, "@function.outer" },
+        ["[c"] = { move.goto_previous_start, "@class.outer" },
+      }) do
+        vim.keymap.set({ "n", "x", "o" }, lhs, function()
+          spec[1](spec[2], "textobjects")
+        end, { desc = spec[2] })
+      end
+
+      -- Swap an argument with the one beside it
+      local swap = require("nvim-treesitter-textobjects.swap")
+      vim.keymap.set("n", "<leader>a", function()
+        swap.swap_next("@parameter.inner")
+      end, { desc = "Swap with next parameter" })
+      vim.keymap.set("n", "<leader>A", function()
+        swap.swap_previous("@parameter.inner")
+      end, { desc = "Swap with previous parameter" })
     end,
   },
 }

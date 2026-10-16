@@ -12,14 +12,14 @@ style_root = "bold red"
 format = "[$user]($style)"
 
 [hostname]
-ssh_only = false
+ssh_only = true
 style = "bold green"
 format = "[@$hostname]($style)"
 
 [directory]
 style = "bold blue"
-truncation_length = 0
-truncate_to_repo = false
+truncation_length = 3
+truncate_to_repo = true
 format = "[$path]($style)"
 
 [git_branch]

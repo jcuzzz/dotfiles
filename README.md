@@ -8,7 +8,7 @@ person working across:
   VMs, cloud instances, homelab)
 - **minimal** environments: containers, recovery shells, unfamiliar boxes
 
-Same keys everywhere: `Ctrl-a` tmux prefix, `Ctrl-h/j/k/l` across tmux panes
+Same keys everywhere: `Ctrl-s` tmux prefix, `Ctrl-h/j/k/l` across tmux panes
 and editor splits, vi copy mode, the same aliases.
 
 ## What this repo is (and isn't)
@@ -107,7 +107,8 @@ sudo apt install fzf zoxide ripgrep fd-find jq direnv shellcheck
 
 | Program | Used for |
 |---|---|
-| Neovim 0.11+ | workstation IDE. Ubuntu's apt build is older; use the [official tarball](https://github.com/neovim/neovim/releases) in `/opt/nvim` or `~/.local` (`.bashrc` adds both to PATH). nvim-lite works with apt's build |
+| Neovim 0.12+ | workstation IDE (nvim-treesitter's `main` branch needs 0.12). Ubuntu's apt build is older; use the [official tarball](https://github.com/neovim/neovim/releases) in `/opt/nvim` or `~/.local` (`.bashrc` adds both to PATH). nvim-lite works with apt's build |
+| tree-sitter CLI 0.26.1+, C compiler | building treesitter parsers for the IDE: grab the release binary into `~/.local/bin`; `sudo apt install build-essential` |
 | tmux 3.2+ | sessions, OSC 52 copy |
 | fzf, zoxide | `Ctrl-R`, `Ctrl-T`, `Alt-C`; `z`/`zi`; the `tm` picker |
 | starship | prompt; not in older Ubuntu repos: grab the release binary into `~/.local/bin` |
@@ -185,11 +186,15 @@ Aliases. Each exists only if its program does, and none change how `rm`,
 | Other | `py`, `dps`, `k`, `tf`, `tm`, `reload` (`exec bash`), `alert` |
 
 The prompt is Ubuntu's `user@host:dir$`, with ` (branch)` when git is
-installed, or Starship if that is installed.
+installed. When Starship is installed it replaces that with `user:dir (branch)$`:
+`@host` appears only over SSH, the path starts at the repo root inside a git
+repo (otherwise the last 3 folders), and git status symbols follow the branch
+(e.g. `?` untracked, `!` modified, `+` staged). Settings are in
+`starship/.config/starship.toml`.
 
 ## tmux and SSH
 
-Prefix `Ctrl-a`; everything else is listed in `tmux/.config/tmux/tmux.conf`.
+Prefix `Ctrl-s`; sessions, windows and panes are numbered from 1. Everything else is listed in `tmux/.config/tmux/tmux.conf`.
 
 | Key | Does |
 |---|---|
@@ -197,6 +202,7 @@ Prefix `Ctrl-a`; everything else is listed in `tmux/.config/tmux/tmux.conf`.
 | `prefix \|` / `prefix -`, `prefix c` | split right / below / new window, in the current directory |
 | `Alt-1..9`, `prefix Tab` | jump to window, last window |
 | `prefix Enter` | copy mode (`v` select, `y` copy) |
+| `prefix b` / `prefix B` | hide the pane in a background `hidden` window / bring it back |
 | `prefix s` / `prefix S` | pick session / window |
 | `prefix d` | detach |
 | `F12` | nested tmux: send all keys to the inner (remote) one; `F12` again to return |
