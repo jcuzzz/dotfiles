@@ -53,8 +53,9 @@ lua/config/
   keymaps.lua             keybinds that belong to no plugin
   autocmds.lua            yank highlight, per-language indent, etc.
   lazy.lua                plugin manager bootstrap, leader key
+  theme_overrides.lua     colour tweaks on top of any theme  <- edit colours here
 lua/plugins/
-  colorscheme.lua         tokyonight, forced to a black bg and no italics
+  colorscheme.lua         installed themes, which one starts, no italics
   lsp.lua                 mason + language servers  <- add languages here
   completion.lua          blink.cmp, snippets
   formatting.lua          conform.nvim, format-on-save

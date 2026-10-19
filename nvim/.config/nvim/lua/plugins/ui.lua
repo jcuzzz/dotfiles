@@ -44,7 +44,7 @@ return {
     dependencies = { { "nvim-tree/nvim-web-devicons", enabled = vim.g.have_nerd_font } },
     opts = {
       options = {
-        theme = "tokyonight",
+        theme = "auto", -- follows whichever colorscheme is active
         globalstatus = true, -- one status line for the whole window, not per split
         component_separators = { left = "│", right = "│" },
         section_separators = "",

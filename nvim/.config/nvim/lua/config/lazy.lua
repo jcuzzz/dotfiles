@@ -39,7 +39,9 @@ require("lazy").setup({
     { import = "plugins" },
   },
 
-  install = { colorscheme = { "tokyonight" } },
+  -- Shown while plugins install on a fresh machine. The real theme is picked
+  -- in lua/plugins/colorscheme.lua.
+  install = { colorscheme = { "habamax" } },
 
   -- Update checking is off: it fires a git fetch per plugin in the
   -- background on every start. Run :Lazy check when you want to know, or
