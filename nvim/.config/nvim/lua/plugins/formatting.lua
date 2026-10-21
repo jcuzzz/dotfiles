@@ -62,6 +62,15 @@ return {
 
       formatters = {
         shfmt = { prepend_args = { "-i", "2" } },
+        -- PostgreSQL by default (sql-formatter.json next to init.lua). A project
+        -- can override it with its own .sql-formatter.json, e.g. for SQLite:
+        --   { "language": "sqlite", "keywordCase": "lower" }
+        sql_formatter = {
+          prepend_args = function(_, ctx)
+            local cfg = vim.fs.find(".sql-formatter.json", { path = ctx.dirname, upward = true })[1]
+            return { "--config", cfg or (vim.fn.stdpath("config") .. "/sql-formatter.json") }
+          end,
+        },
       },
     },
 
