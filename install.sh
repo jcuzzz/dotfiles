@@ -179,6 +179,32 @@ else
   fi
 fi
 
+# Linking a config doesn't install the program it configures. Say so,
+# rather than leaving e.g. nvim-lite linked on a box with no nvim. Look
+# where ~/.bashrc will, which this shell may not have loaded yet.
+missing=""
+for p in $PKGS; do
+  case "$p" in
+    nvim | nvim-lite) prog=nvim ;;
+    tmux | starship) prog="$p" ;;
+    *) continue ;;
+  esac
+  PATH="/opt/nvim/bin:$HOME/.local/bin:$PATH" command -v "$prog" >/dev/null 2>&1 ||
+    missing="$missing $prog"
+done
+if [ -n "$missing" ]; then
+  echo "note: not installed:$missing. Their config is linked but unused until they are."
+  echo "      Run $DOTFILES/bootstrap.sh --profile $PROFILE (or see README 'Programs')"
+fi
+case " $PKGS " in *" nvim "*)
+  v="$(PATH="/opt/nvim/bin:$HOME/.local/bin:$PATH" NVIM_LOG_FILE=/dev/null nvim --version 2>/dev/null |
+       sed -n '1s/^NVIM v\([0-9][0-9.]*\).*/\1/p')" || true
+  if [ -n "$v" ] && [ "$(printf '%s\n0.12\n' "$v" | sort -V | head -n 1)" != 0.12 ]; then
+    echo "note: Neovim $v is too old for the IDE config, which needs 0.12+."
+    echo "      Run $DOTFILES/bootstrap.sh --profile $PROFILE to get a current build"
+  fi ;;
+esac
+
 if [ "$DRY_RUN" = 1 ]; then
   echo "dry run: profile '$PROFILE' ($PKGS); nothing was changed"
 else

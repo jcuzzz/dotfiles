@@ -67,7 +67,7 @@ repo_before="$(snapshot "$REPO")"
 
 # ── Lint ─────────────────────────────────────────────────────────────────────
 section "syntax"
-for f in install.sh tests/run.sh bash/.bashrc bash/.bashrc.d/*.sh; do
+for f in install.sh bootstrap.sh tests/run.sh bash/.bashrc bash/.bashrc.d/*.sh; do
   check "bash -n $f" bash -n "$SRC/$f"
 done
 
@@ -201,6 +201,62 @@ inst --uninstall >/dev/null 2>&1
 check "all links removed" bash -c '[ -z "$(find "$1" -type l)" ]' _ "$H"
 check "other files kept" grep -qx mine "$H/.inputrc"
 check "backup kept" grep -rqx stock "$H/.dotfiles-backup"
+# ── Missing programs ─────────────────────────────────────────────────────────
+section "missing programs"
+# Everything on PATH except the programs the configs are for
+notools="$WORK/no-tools"; mkdir -p "$notools"
+for d in /bin /usr/bin /usr/local/bin; do
+  [ -d "$d" ] && find "$d" -maxdepth 1 ! -type d ! -name tmux ! -name nvim ! -name starship ! -name tree-sitter \
+    -exec ln -sf -t "$notools" {} +
+done
+new_home
+out="$(env HOME="$H" PATH="$notools" "$REPO/install.sh" --profile server 2>&1)" && rc=0 || rc=$?
+check "server without tmux/starship: still installs" [ "$rc" = 0 ]
+check "...and names them in a note" grep -q '^note: not installed:.* tmux.* starship' <<< "$out"
+check "...pointing at bootstrap.sh" grep -q 'bootstrap.sh --profile server' <<< "$out"
+mkdir -p "$H/.local/bin"
+printf '#!/bin/sh\n' > "$H/.local/bin/starship"; chmod +x "$H/.local/bin/starship"
+out="$(env HOME="$H" PATH="$notools" "$REPO/install.sh" --profile server 2>&1)"
+check "a program in ~/.local/bin counts, even before .bashrc adds it to PATH" \
+  bash -c '! grep -q "not installed:.*starship" <<< "$1"' _ "$out"
+new_home
+out="$(env HOME="$H" PATH="$notools" "$REPO/install.sh" --profile minimal 2>&1)"
+check "minimal: no note (it links no tmux/nvim/starship config)" bash -c '! grep -q "^note:" <<< "$1"' _ "$out"
+if [ -e /opt/nvim/bin/nvim ]; then
+  skip "old-Neovim note (/opt/nvim/bin/nvim would shadow the fake one)"
+else
+  new_home; mkdir -p "$H/.local/bin"
+  printf '#!/bin/sh\necho "NVIM v0.9.5"\n' > "$H/.local/bin/nvim"; chmod +x "$H/.local/bin/nvim"
+  out="$(env HOME="$H" PATH="$notools" "$REPO/install.sh" --profile workstation 2>&1)"
+  check "workstation with Neovim 0.9: notes it is too old" grep -q 'Neovim 0.9.5 is too old' <<< "$out"
+  out="$(env HOME="$H" PATH="$notools" "$REPO/install.sh" --profile server 2>&1)"
+  check "server with Neovim 0.9: fine for nvim-lite, no note" bash -c '! grep -q "too old" <<< "$1"' _ "$out"
+fi
+
+# ── Bootstrap (dry run only: the real thing needs sudo and network) ──────────
+section "bootstrap"
+new_home
+check "--help exits 0" bash -c '"$@" >/dev/null' _ env HOME="$H" "$REPO/bootstrap.sh" --help
+rc=0; env HOME="$H" "$REPO/bootstrap.sh" --bogus >/dev/null 2>&1 || rc=$?
+check "unknown option exits 2" [ "$rc" = 2 ]
+rc=0; env HOME="$H" "$REPO/bootstrap.sh" --profile laptop >/dev/null 2>&1 || rc=$?
+check "unknown profile exits 2" [ "$rc" = 2 ]
+for profile in workstation server minimal; do
+  new_home
+  printf 'stock\n' > "$H/.bashrc"
+  before="$(snapshot "$H")"
+  out="$(env HOME="$H" "$REPO/bootstrap.sh" --profile "$profile" --dry-run 2>&1)" && rc=0 || rc=$?
+  check "$profile --dry-run: exits 0" [ "$rc" = 0 ]
+  [ "$rc" = 0 ] || show "$out"
+  check "$profile --dry-run: shows the plan and install.sh's" \
+    bash -c 'grep -q "^apt install:" <<< "$1" && grep -q "moving ~/.bashrc" <<< "$1"' _ "$out"
+  check "$profile --dry-run: nothing changed" [ "$before" = "$(snapshot "$H")" ]
+done
+out="$(env HOME="$H" PATH="$notools" "$REPO/bootstrap.sh" --profile server --dry-run 2>&1)"
+check "server without starship: plans to download it" grep -q '^download to ~/.local: starship' <<< "$out"
+out="$(env HOME="$H" PATH="$notools" "$REPO/bootstrap.sh" --profile workstation --dry-run 2>&1)" && rc=0 || rc=$?
+check "workstation without tree-sitter: exits 0 and plans to download it" \
+  bash -c '[ "$1" = 0 ] && grep -q "^download to ~/.local:.*tree-sitter" <<< "$2"' _ "$rc" "$out"
 fi  # stow available
 
 # ── Bash ─────────────────────────────────────────────────────────────────────

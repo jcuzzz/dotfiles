@@ -16,23 +16,34 @@ and editor splits, vi copy mode, the same aliases.
 | Concern | Handled by |
 |---|---|
 | Personal shell, editor, tmux, git settings | **this repo**, linked with GNU Stow |
-| Installing programs (tmux, neovim, fzf, ...) | your package manager (`apt`) |
+| Installing programs (tmux, neovim, fzf, ...) | `bootstrap.sh` (apt + a few release builds), or apt by hand |
 | Servers: packages, users, SSH hardening, PostgreSQL, dbt | Ansible, kept separately |
 
-Nothing here installs software, needs sudo once stow is present, or
-changes your login shell.
+`install.sh` only links config: it installs no software, needs no sudo
+once stow is present, and never changes your login shell. `bootstrap.sh` is
+the optional step before it that installs the programs.
 
 ## Install
 
 ```sh
-sudo apt install stow                 # once per machine (or via Ansible)
 git clone https://github.com/jcuzzz/dotfiles ~/dotfiles   # any path works
-~/dotfiles/install.sh --profile server   # workstation (default) | server | minimal
+~/dotfiles/bootstrap.sh --profile server   # workstation (default) | server | minimal
 exec bash
+```
+
+That installs the profile's programs (see [Programs](#programs)) and then
+runs `install.sh`. On a box where the programs are already there, or where
+Ansible handles them, link only:
+
+```sh
+sudo apt install stow                    # once per machine
+~/dotfiles/install.sh --profile server
 ```
 
 | Command | Does |
 |---|---|
+| `./bootstrap.sh --profile NAME` | install that profile's programs, then `install.sh --profile NAME` |
+| `./bootstrap.sh --profile NAME --dry-run` | list what it would install and link; change nothing |
 | `./install.sh --profile NAME` | link that profile's packages; unlink the rest |
 | `./install.sh --profile NAME --dry-run` | show what would happen; change nothing |
 | `./install.sh --uninstall` | remove every link stow made |
@@ -96,22 +107,33 @@ Or copy just `.bashrc`, `.bashrc.d/` and `.vimrc` over.
 
 ## Programs
 
-Install what you want with apt. Every one is optional:
+`bootstrap.sh --profile NAME` installs these. Anything already on PATH is
+skipped, however it got there, so re-running is safe:
 
-```sh
-# server
-sudo apt install stow tmux neovim git
-# workstation extras
-sudo apt install fzf zoxide ripgrep fd-find jq direnv shellcheck
-```
+| Profile | apt (with sudo, or as root) | Release builds into `~/.local` (no sudo) |
+|---|---|---|
+| minimal | stow git vim | |
+| server | + tmux neovim fzf ripgrep jq curl ca-certificates | starship |
+| workstation | + zoxide fd-find direnv shellcheck build-essential unzip nodejs npm golang-go python3-venv (Neovim from the release instead) | Neovim 0.12+ (`~/.local/opt/nvim`), tree-sitter CLI, starship |
+
+Packages a release doesn't have (e.g. zoxide before Ubuntu 22.04) are
+skipped with a warning. Without apt or sudo it lists what to install and
+carries on. Release builds come from each project's latest GitHub release
+(x86_64 and arm64). Not included: a Nerd Font for the terminal, and
+anything per-project.
+
+`install.sh` notes any of tmux, nvim and starship that are missing for the
+profile it linked, and a Neovim too old for the IDE config.
+
+Every program is optional. Without one, the configs still load:
 
 | Program | Used for |
 |---|---|
-| Neovim 0.12+ | workstation IDE (nvim-treesitter's `main` branch needs 0.12). Ubuntu's apt build is older; use the [official tarball](https://github.com/neovim/neovim/releases) in `/opt/nvim` or `~/.local` (`.bashrc` adds both to PATH). nvim-lite works with apt's build |
-| tree-sitter CLI 0.26.1+, C compiler | building treesitter parsers for the IDE: grab the release binary into `~/.local/bin`; `sudo apt install build-essential` |
+| Neovim 0.12+ | workstation IDE (nvim-treesitter's `main` branch needs 0.12). Ubuntu's apt build is older, so bootstrap uses the [official tarball](https://github.com/neovim/neovim/releases). `.bashrc` puts `/opt/nvim/bin` ahead of `~/.local/bin`, so an old Neovim in `/opt/nvim` hides the new one; bootstrap warns about that. nvim-lite works with apt's build |
+| tree-sitter CLI 0.26.1+, C compiler | building treesitter parsers for the IDE |
 | tmux 3.2+ | sessions, OSC 52 copy |
 | fzf, zoxide | `Ctrl-R`, `Ctrl-T`, `Alt-C`; `z`/`zi`; the `tm` picker |
-| starship | prompt; not in older Ubuntu repos: grab the release binary into `~/.local/bin` |
+| starship | prompt (not in older Ubuntu repos, hence the release build) |
 | direnv | per-project env from `.envrc` (keep secrets in gitignored `.envrc` files) |
 | ripgrep, fd, jq | search and JSON; Telescope uses rg/fd |
 
@@ -287,7 +309,7 @@ difference. Opt-in helpers: `:timing`, `:x`, `:nulls`, `:activity`.
 
 ```sh
 tests/run.sh      # needs stow; tmux/vim/nvim checks run if installed
-shellcheck install.sh tests/run.sh bash/.bashrc bash/.bashrc.d/*.sh
+shellcheck install.sh bootstrap.sh tests/run.sh bash/.bashrc bash/.bashrc.d/*.sh
 ```
 
 What the tests cover. Each runs in a throwaway HOME against a copy of the
@@ -300,7 +322,11 @@ repo cloned at a path with spaces:
 - bash startup: silent when non-interactive, no duplicated hooks, works on
   a bare system
 - the tmux config loading, `.vimrc` in Vim, nvim-lite starting cleanly
+- the missing-program notes, and `bootstrap.sh --dry-run` for every
+  profile (the real run needs sudo and network, so CI does that)
 
 CI (`.github/workflows/ci.yml`) runs ShellCheck and the suite on Ubuntu
 24.04 with apt's stow, tmux, vim and neovim. It runs it again in a bare
-`ubuntu:24.04` container with only stow added.
+`ubuntu:24.04` container with only stow added. A third job runs
+`bootstrap.sh` for real, twice, for the server and workstation profiles:
+on an Ubuntu runner with sudo, and as root in a bare container.

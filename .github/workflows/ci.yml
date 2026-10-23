@@ -14,9 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: ShellCheck (preinstalled on GitHub's Ubuntu runners)
-        run: shellcheck install.sh tests/run.sh bash/.bashrc bash/.bashrc.d/*.sh
+        run: shellcheck install.sh bootstrap.sh tests/run.sh bash/.bashrc bash/.bashrc.d/*.sh
       - name: Bash syntax
-        run: for f in install.sh tests/run.sh bash/.bashrc bash/.bashrc.d/*.sh; do bash -n "$f"; done
+        run: for f in install.sh bootstrap.sh tests/run.sh bash/.bashrc bash/.bashrc.d/*.sh; do bash -n "$f"; done
 
   test:
     # What a fresh server gets from apt: stow 2.3, tmux, vim, Neovim 0.9
@@ -48,3 +48,32 @@ jobs:
           su - tester -c '~/dotfiles/install.sh --profile server'
           su - tester -c 'bash -ic "type ll lt mkcd; echo EDITOR=\$EDITOR"' | tee /tmp/shell
           grep -q "EDITOR=vi" /tmp/shell
+
+  bootstrap:
+    # The real thing: apt, downloads, linking, then a second run that must
+    # find everything in place. Once on a runner (sudo), once as root in a
+    # bare container (no sudo, no curl, no CA certificates to start with).
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [server, workstation]
+        where: [runner, container]
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.where == 'container' && 'ubuntu:24.04' || null }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: ./bootstrap.sh --profile ${{ matrix.profile }}
+      - name: Re-run installs nothing and notes nothing missing
+        run: |
+          ./bootstrap.sh --profile ${{ matrix.profile }} | tee /tmp/rerun
+          grep -q "^programs: all present" /tmp/rerun
+          if grep -q "^note:" /tmp/rerun; then exit 1; fi
+      - name: A new shell has the programs
+        run: |
+          bash -ic 'command -v nvim tmux starship; nvim --version | head -n 1' | tee /tmp/shell
+          grep -q starship /tmp/shell
+      - if: matrix.profile == 'workstation'
+        name: Workstation has Neovim 0.12+ and the tree-sitter CLI
+        run: |
+          bash -ic 'nvim --headless -u NONE -c "if !has(\"nvim-0.12\") | cquit | endif" -c qa'
+          bash -ic 'tree-sitter --version'
